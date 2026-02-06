@@ -1,8 +1,16 @@
+using CarrierIntegrationModel;
+using CarrierIntegrationCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// This dependency injection is normally outside this service, but for the sake of this exercise, we will register it here.
+// In a real-world application, you would typically have a separate project, called CarrierIntegrationAddin, say,
+// for the implementation and register it in the composition root of your application.
+builder.Services.AddScoped<ICarrierIntegration, CarrierIntegration>();
 
 // Add CORS policy
 builder.Services.AddCors(options =>
@@ -18,14 +26,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// In-memory storage for user credentials
-var userStore = new Dictionary<string, string>
-{
-    { "admin", "password" },
-    { "user1", "pass123" },
-    { "demo", "demo123" }
-};
-
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -36,29 +36,12 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowBlazorApp");
 
-app.MapPost("/auth/token", (TokenRequest request) =>
+app.MapPost("/auth/token", (TokenRequest request, ICarrierIntegration carrierIntegration) =>
 {
-    // Validate required fields
-    if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
-    {
-        return Results.BadRequest(new { error = "Username and password are required" });
-    }
-
-    // Validate against in-memory user store
-    if (userStore.TryGetValue(request.Username, out var storedPassword) && 
-        storedPassword == request.Password)
-    {
-        var token = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
-        return Results.Ok(new TokenResponse(token, "Bearer", 3600));
-    }
-
-    return Results.Unauthorized();
+    return carrierIntegration.Authenticate(request.Username, request.Password);
 })
 .WithName("AuthToken");
 
 app.Run();
 
 record TokenRequest(string Username, string Password);
-
-record TokenResponse(string AccessToken, string TokenType, int ExpiresIn);
-

@@ -1,6 +1,8 @@
 <Solution>
-  <Project Path="CarrierIntegrationWebApp\CarrierIntegrationWebApp.csproj" Type="C#" />
-  <Project Path="SpeedShipIntegrationService\SpeedShipIntegrationService.csproj" Type="C#" />
+  <Project Path="CarrierIntegrationWebApp/CarrierIntegrationWebApp.csproj" Type="C#" />
+  <Project Path="SpeedShipIntegrationService/SpeedShipIntegrationService.csproj" Type="C#" />
+  <Project Path="CarrierIntegrationCore/CarrierIntegrationCore.csproj" Type="C#" />
+  <Project Path="CarrierIntegrationModel/CarrierIntegrationModel.csproj" Type="C#" />
   <Configurations>
     <Configuration Name="Debug|Any CPU" />
     <Configuration Name="Debug|x64" />

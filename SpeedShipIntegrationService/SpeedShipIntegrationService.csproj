@@ -10,4 +10,9 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../CarrierIntegrationCore/CarrierIntegrationCore.csproj" />
+    <ProjectReference Include="../CarrierIntegrationModel/CarrierIntegrationModel.csproj" />
+  </ItemGroup>
+
 </Project>
