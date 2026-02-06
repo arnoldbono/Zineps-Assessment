@@ -1,0 +1,6 @@
+@CarrierIntegrationWebServer_HostAddress = http://localhost:5192
+
+POST {{SpeedShipIntegrationService_HostAddress}}/auth/token/
+Accept: application/json
+
+###
