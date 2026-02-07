@@ -1,0 +1,299 @@
+@page "/shipment/labels"
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Headers
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Shipment Labels</PageTitle>
+
+<h1>Shipment Labels</h1>
+
+@if (!HasValidToken())
+{
+    <div class="alert alert-warning" role="alert">
+        <p>You need to login first to view shipment labels.</p>
+        <a href="/login" class="btn btn-primary">Go to Login</a>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3">
+                <label for="shipmentId" class="form-label">Select Shipment</label>
+                @if (isLoadingShipments)
+                {
+                    <div class="text-muted">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Loading shipments...
+                    </div>
+                }
+                else if (shipments.Count == 0)
+                {
+                    <div class="alert alert-info">
+                        No shipments available. <a href="/shipment/create">Create a shipment first</a>.
+                    </div>
+                }
+                else
+                {
+                    <select id="shipmentId" @onchange="OnShipmentSelected" class="form-control">
+                        <option value="">Select a shipment...</option>
+                        @foreach (var shipment in shipments)
+                        {
+                            <option value="@shipment.Id">@shipment.Carrier - @shipment.TrackingNumber</option>
+                        }
+                    </select>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    <strong>Error:</strong> @errorMessage
+                </div>
+            }
+
+            @if (isLoadingLabels)
+            {
+                <div class="text-center my-4">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Loading labels...
+                </div>
+            }
+            else if (selectedShipmentId != null && labels.Count == 0)
+            {
+                <div class="alert alert-info">
+                    No labels found for this shipment. <a href="/shipment/label/create">Create a label</a>.
+                </div>
+            }
+            else if (labels.Count > 0)
+            {
+                <h3 class="mt-4">Labels</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Label ID</th>
+                                <th>Format</th>
+                                <th>Data Size</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var label in labels)
+                            {
+                                <tr>
+                                    <td>@label.Id</td>
+                                    <td>
+                                        <span class="badge bg-@(label.Format == "PDF" ? "danger" : "primary")">
+                                            @label.Format
+                                        </span>
+                                    </td>
+                                    <td>@FormatDataSize(label.LabelData?.Length ?? 0)</td>
+                                    <td>
+                                        @if (label.LabelData != null && label.LabelData.Length > 0)
+                                        {
+                                            <button class="btn btn-sm btn-primary" @onclick="() => DownloadLabel(label)">
+                                                <span class="bi bi-download"></span> Download
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No data</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string? errorMessage;
+    private bool isLoadingShipments = false;
+    private bool isLoadingLabels = false;
+    private string? bearerToken;
+    private string? selectedShipmentId;
+    private List<ShipmentItem> shipments = new();
+    private List<LabelItem> labels = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                bearerToken = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
+                if (!string.IsNullOrEmpty(bearerToken))
+                {
+                    await LoadShipments();
+                }
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    private bool HasValidToken()
+    {
+        return !string.IsNullOrEmpty(bearerToken);
+    }
+
+    private async Task LoadShipments()
+    {
+        isLoadingShipments = true;
+        errorMessage = null;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "https://localhost:7082/shipments");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<List<ShipmentItem>>();
+                if (result != null)
+                {
+                    shipments = result;
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                errorMessage = "Unauthorized. Please login again.";
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/login", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load shipments: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingShipments = false;
+        }
+    }
+
+    private async Task OnShipmentSelected(ChangeEventArgs e)
+    {
+        var shipmentId = e.Value?.ToString();
+        if (string.IsNullOrEmpty(shipmentId))
+        {
+            labels.Clear();
+            selectedShipmentId = null;
+            return;
+        }
+
+        selectedShipmentId = shipmentId;
+        await LoadLabels(shipmentId);
+    }
+
+    private async Task LoadLabels(string shipmentId)
+    {
+        isLoadingLabels = true;
+        errorMessage = null;
+        labels.Clear();
+
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"https://localhost:7082/shipment/{shipmentId}/labels");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<List<LabelItem>>();
+                if (result != null)
+                {
+                    labels = result;
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                errorMessage = "Unauthorized. Please login again.";
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/login", true);
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // No labels found, that's okay
+                labels.Clear();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Failed to load labels. Status: {response.StatusCode}. {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading labels: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingLabels = false;
+        }
+    }
+
+    private string FormatDataSize(int bytes)
+    {
+        if (bytes == 0) return "No data";
+        
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private async Task DownloadLabel(LabelItem label)
+    {
+        if (label.LabelData == null || label.LabelData.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var base64 = Convert.ToBase64String(label.LabelData);
+            var mimeType = label.Format == "PDF" ? "application/pdf" : "image/png";
+            var extension = label.Format == "PDF" ? "pdf" : "png";
+            var fileName = $"label-{label.Id}.{extension}";
+
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, mimeType, base64);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to download label: {ex.Message}";
+        }
+    }
+
+    private class ShipmentItem
+    {
+        public string? Id { get; set; }
+        public string? Carrier { get; set; }
+        public string? TrackingNumber { get; set; }
+        public double Amount { get; set; }
+        public string? Zone { get; set; }
+    }
+
+    private class LabelItem
+    {
+        public string? Id { get; set; }
+        public string? ShipmentId { get; set; }
+        public byte[]? LabelData { get; set; }
+        public string? Format { get; set; }
+    }
+}

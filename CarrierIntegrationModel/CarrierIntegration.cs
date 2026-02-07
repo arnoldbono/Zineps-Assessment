@@ -216,6 +216,23 @@ public class CarrierIntegration : ICarrierIntegration
 
         return Results.NotFound(new { error = "Tracknumber not found" });
     }
+
+    public IResult GetShipmentLabelsByShipmentId(string token, string shipmentId)
+    {
+        var username = GetUsernameFromToken(token);
+        if (username == null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (Guid.TryParse(shipmentId, out var shipmentGuid) && _shipments.ContainsKey(shipmentGuid))
+        {
+            var labels = _shipmentLabels.Values.Where(l => l.ShipmentId == shipmentId).ToList();
+            return Results.Ok(labels);
+        }
+
+        return Results.NotFound(new { error = "Shipment not found" });
+    }
 }
 
 public record TokenResponse(string AccessToken, string TokenType, int ExpiresIn);

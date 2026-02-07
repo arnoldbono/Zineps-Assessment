@@ -81,6 +81,17 @@ app.MapPost("/shipment/labels", (GetShipmentLabelsRequest request, HttpContext c
 })
 .WithName("GetShipmentLabels");
 
+app.MapGet("/shipment/{shipmentId}/labels", (string shipmentId, HttpContext context, ICarrierIntegration carrierIntegration) =>
+{
+    var token = context.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
+    if (string.IsNullOrEmpty(token))
+    {
+        return Results.Unauthorized();
+    }
+    return carrierIntegration.GetShipmentLabelsByShipmentId(token, shipmentId);
+})
+.WithName("GetShipmentLabelsByShipmentId");
+
 app.MapPost("/shipment/label/create", async (HttpContext context, ICarrierIntegration carrierIntegration) =>
 {
     var token = context.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
