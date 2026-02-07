@@ -1,6 +1,6 @@
 namespace CarrierIntegrationCore;
 
-public class Label
+public class ShipmentLabel
 {
     public string? Id { get; set; }
     public required string ShipmentId { get; set; }

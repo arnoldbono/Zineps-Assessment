@@ -23,10 +23,10 @@ public class CarrierIntegration : ICarrierIntegration
     };
 
     private static Dictionary<Guid, string> _tokenUserMap = []; // Maps token GUIDs to usernames
-
     private static Dictionary<Guid, DateTime> _tokenExpiryMap = []; // Maps token GUIDs to expiration times
-    
     private static Dictionary<string, Guid> _userTokenMap = []; // Maps usernames to token GUIDs
+    private static Dictionary<Guid, ShipmentLabel> _shipmentLabels = []; // Maps shipment label IDs to labels
+    private static Dictionary<Guid, Shipment> _shipments = []; // Maps shipment IDs to shipments
 
     public IResult Authenticate(string username, string password)
     {
@@ -114,6 +114,38 @@ public class CarrierIntegration : ICarrierIntegration
         }
 
         return Results.Unauthorized();
+    }
+
+    public IResult AddShipment(string token, Shipment shipment)
+    {
+        var username = GetUsernameFromToken(token);
+        if (username == null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var id = Guid.NewGuid();
+        shipment.Id = id.ToString();
+        _shipments[id] = shipment;
+        return Results.Ok(shipment);
+    }
+
+    public IResult GetShipmentLabels(string token, string trackingNumber)
+    {
+        var username = GetUsernameFromToken(token);
+        if (username == null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var shipments = _shipments.Values.FirstOrDefault(s => s.TrackingNumber == trackingNumber);
+        if (shipments != null)
+        {
+            var labels = _shipmentLabels.Values.Where(l => l.ShipmentId == shipments.Id).ToList();
+            return Results.Ok(labels);
+        }
+
+        return Results.NotFound(new { error = "Tracknumber not found" });
     }
 }
 

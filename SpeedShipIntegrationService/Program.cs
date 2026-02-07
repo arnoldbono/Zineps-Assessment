@@ -48,8 +48,34 @@ app.MapPost("/logout", (LogoutRequest request, ICarrierIntegration carrierIntegr
 })
 .WithName("Logout");
 
+app.MapPost("/shipment/add", (AddShipmentRequest request, HttpContext context, ICarrierIntegration carrierIntegration) =>
+{
+    var token = context.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
+    if (string.IsNullOrEmpty(token))
+    {
+        return Results.Unauthorized();
+    }
+    return carrierIntegration.AddShipment(token, request.Shipment);
+})
+.WithName("AddShipment");
+
+app.MapPost("/shipment/labels", (GetShipmentLabelsRequest request, HttpContext context, ICarrierIntegration carrierIntegration) =>
+{
+    var token = context.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
+    if (string.IsNullOrEmpty(token))
+    {
+        return Results.Unauthorized();
+    }
+    return carrierIntegration.GetShipmentLabels(token, request.TrackingNumber);
+})
+.WithName("GetShipmentLabels");
+
 app.Run();
 
 record TokenRequest(string Username, string Password);
 
 record LogoutRequest(string Token);
+
+record AddShipmentRequest(Shipment Shipment);
+
+record GetShipmentLabelsRequest(string Token, string TrackingNumber);

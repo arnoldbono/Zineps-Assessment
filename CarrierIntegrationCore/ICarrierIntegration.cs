@@ -9,4 +9,8 @@ public interface ICarrierIntegration
     IResult FindAccount(string token);
 
     IResult Logout(string token);
+
+    IResult AddShipment(string token, Shipment shipment);
+
+    IResult GetShipmentLabels(string token, string trackingNumber);
 }
