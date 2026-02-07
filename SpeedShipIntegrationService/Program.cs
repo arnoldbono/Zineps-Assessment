@@ -42,6 +42,14 @@ app.MapPost("/auth/token", (TokenRequest request, ICarrierIntegration carrierInt
 })
 .WithName("AuthToken");
 
+app.MapPost("/logout", (LogoutRequest request, ICarrierIntegration carrierIntegration) =>
+{
+    return carrierIntegration.Logout(request.Token);
+})
+.WithName("Logout");
+
 app.Run();
 
 record TokenRequest(string Username, string Password);
+
+record LogoutRequest(string Token);

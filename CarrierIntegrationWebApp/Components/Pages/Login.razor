@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Login</PageTitle>
 
@@ -38,13 +39,16 @@
                 </div>
             }
 
-            <button type="submit" class="btn btn-primary" disabled="@isLoading">
-                @if (isLoading)
-                {
-                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                }
-                Login
-            </button>
+            @if (!HasValidToken())
+            {
+                <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    Login
+                </button>
+            }
         </EditForm>
     </div>
 </div>
@@ -54,6 +58,25 @@
     private string? errorMessage;
     private string? successMessage;
     private bool isLoading = false;
+    private string? bearerToken;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                bearerToken = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    private bool HasValidToken()
+    {
+        return !string.IsNullOrEmpty(bearerToken);
+    }
 
     private async Task HandleLogin()
     {
@@ -74,8 +97,13 @@
                 var result = await response.Content.ReadFromJsonAsync<TokenResponse>();
                 if (result != null)
                 {
-                    successMessage = $"Login successful! Token: {result.AccessToken}";
-                    // Store token for future use (e.g., in localStorage or session)
+                    bearerToken = result.AccessToken;
+                    await JSRuntime.InvokeVoidAsync("localStorage.setItem", "bearerToken", bearerToken);
+                    successMessage = $"Login successful! Redirecting...";
+                    
+                    // Wait 2 seconds then navigate to home page
+                    await Task.Delay(2000);
+                    Navigation.NavigateTo("/", true);
                 }
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
