@@ -12,5 +12,11 @@ public interface ICarrierIntegration
 
     IResult AddShipment(string token, Shipment shipment);
 
+    IResult GetShipment(string token, string shipmentId);
+
+    IResult GetShipments(string token);
+
+    IResult AddShipmentLabel(string token, string shipmentId, IFormFile? labelFile = null);
+
     IResult GetShipmentLabels(string token, string trackingNumber);
 }

@@ -59,6 +59,17 @@ app.MapPost("/shipment/add", (AddShipmentRequest request, HttpContext context, I
 })
 .WithName("AddShipment");
 
+app.MapGet("/shipments", (HttpContext context, ICarrierIntegration carrierIntegration) =>
+{
+    var token = context.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
+    if (string.IsNullOrEmpty(token))
+    {
+        return Results.Unauthorized();
+    }
+    return carrierIntegration.GetShipments(token);
+})
+.WithName("GetShipments");
+
 app.MapPost("/shipment/labels", (GetShipmentLabelsRequest request, HttpContext context, ICarrierIntegration carrierIntegration) =>
 {
     var token = context.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
@@ -69,6 +80,28 @@ app.MapPost("/shipment/labels", (GetShipmentLabelsRequest request, HttpContext c
     return carrierIntegration.GetShipmentLabels(token, request.TrackingNumber);
 })
 .WithName("GetShipmentLabels");
+
+app.MapPost("/shipment/label/create", async (HttpContext context, ICarrierIntegration carrierIntegration) =>
+{
+    var token = context.Request.Headers.Authorization.FirstOrDefault()?.Replace("Bearer ", "");
+    if (string.IsNullOrEmpty(token))
+    {
+        return Results.Unauthorized();
+    }
+
+    var form = await context.Request.ReadFormAsync();
+    var shipmentId = form["shipmentId"].ToString();
+    var labelFile = form.Files["labelFile"];
+
+    if (string.IsNullOrEmpty(shipmentId))
+    {
+        return Results.BadRequest(new { error = "Shipment ID is required" });
+    }
+
+    return carrierIntegration.AddShipmentLabel(token, shipmentId, labelFile);
+})
+.WithName("CreateShipmentLabel")
+.DisableAntiforgery();
 
 app.Run();
 

@@ -1,7 +1,41 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+@inject HttpClient Http
 
 <PageTitle>Home</PageTitle>
 
 <h1>Hello, SpeedShip!</h1>
 
 Welcome to your carrier integration app.
+
+@code {
+    private static bool hasInvalidated = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasInvalidated)
+        {
+            try
+            {
+                var token = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
+                
+                if (!string.IsNullOrEmpty(token))
+                {
+                    // Invalidate the token on the server by calling logout
+                    try
+                    {
+                        await Http.PostAsJsonAsync("https://localhost:7082/logout", new { token = token });
+                    }
+                    catch { }
+                    
+                    // Remove from localStorage
+                    await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "bearerToken");
+                }
+                
+                hasInvalidated = true;
+            }
+            catch { }
+        }
+    }
+}

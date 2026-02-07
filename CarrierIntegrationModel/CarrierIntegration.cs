@@ -126,8 +126,77 @@ public class CarrierIntegration : ICarrierIntegration
 
         var id = Guid.NewGuid();
         shipment.Id = id.ToString();
+        if (string.IsNullOrEmpty(shipment.TrackingNumber))
+        {
+            shipment.TrackingNumber = $"TRACK-{id.ToString()[..8].ToUpper()}";
+        }
         _shipments[id] = shipment;
         return Results.Ok(shipment);
+    }
+
+    public IResult GetShipment(string token, string shipmentId)
+    {
+        var username = GetUsernameFromToken(token);
+        if (username == null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (Guid.TryParse(shipmentId, out var shipmentGuid) && _shipments.TryGetValue(shipmentGuid, out var shipment))
+        {
+            return Results.Ok(shipment);
+        }
+
+        return Results.NotFound(new { error = "Shipment not found" });
+    }
+
+    public IResult GetShipments(string token)
+    {
+        var username = GetUsernameFromToken(token);
+        if (username == null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var shipments = _shipments.Values.ToList();
+        return Results.Ok(shipments);
+    }
+
+    // Assessment does not specify whether the LabelData should be generated or uploaded.
+    public IResult AddShipmentLabel(string token, string shipmentId, IFormFile? labelFile = null)
+    {
+        var username = GetUsernameFromToken(token);
+        if (username == null)
+        {
+            return Results.Unauthorized();
+        }
+    
+        if (Guid.TryParse(shipmentId, out var shipmentGuid) && _shipments.TryGetValue(shipmentGuid, out var shipment))
+        {
+            var labelId = Guid.NewGuid();
+            
+            byte[] labelData = [];
+            string format = "PDF";
+            if (labelFile != null)
+            {
+                using var memoryStream = new MemoryStream();
+                labelFile.CopyTo(memoryStream);
+                labelData = memoryStream.ToArray();
+                format = labelFile?.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase) == true ? "PDF" : "PNG";
+            }
+            
+            var label = new ShipmentLabel
+            {
+                Id = labelId.ToString(),
+                ShipmentId = shipment.Id!,
+                LabelData = labelData,
+                Format = format
+            };
+            _shipmentLabels[labelId] = label;
+            return Results.Ok(label);
+        }
+
+        return Results.NotFound(new { error = "Shipment not found" });
     }
 
     public IResult GetShipmentLabels(string token, string trackingNumber)

@@ -1,0 +1,283 @@
+@page "/shipment/label/create"
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Headers
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Create Shipment Label</PageTitle>
+
+<h1>Create Shipment Label</h1>
+
+@if (!HasValidToken())
+{
+    <div class="alert alert-warning" role="alert">
+        <p>You need to login first to create a shipment label.</p>
+        <a href="/login" class="btn btn-primary">Go to Login</a>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6">
+            <EditForm Model="@labelModel" OnValidSubmit="@HandleCreateLabel">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label for="shipmentId" class="form-label">Select Shipment</label>
+                    @if (isLoadingShipments)
+                    {
+                        <div class="text-muted">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading shipments...
+                        </div>
+                    }
+                    else if (shipments.Count == 0)
+                    {
+                        <div class="alert alert-info">
+                            No shipments available. <a href="/shipment/create">Create a shipment first</a>.
+                        </div>
+                    }
+                    else
+                    {
+                        <InputSelect id="shipmentId" @bind-Value="labelModel.ShipmentId" class="form-control">
+                            <option value="">Select a shipment...</option>
+                            @foreach (var shipment in shipments)
+                            {
+                                <option value="@shipment.Id">@shipment.Carrier - @shipment.TrackingNumber</option>
+                            }
+                        </InputSelect>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label for="labelFile" class="form-label">Label File (PDF or PNG)</label>
+                    <InputFile id="labelFile" OnChange="@OnFileSelected" class="form-control" accept=".pdf,.png" />
+                    @if (selectedFile != null)
+                    {
+                        <small class="text-muted">Selected: @selectedFile.Name (@FormatFileSize(selectedFile.Size))</small>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Error:</strong> @errorMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success" role="alert">
+                        <strong>Success!</strong> @successMessage
+                    </div>
+                }
+
+                <button type="submit" class="btn btn-primary" disabled="@(isLoading || isSubmittedSuccessfully)">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    Create Label
+                </button>
+                <button type="button" class="btn btn-secondary ms-2" @onclick="ResetForm" disabled="@(isLoading || !isSubmittedSuccessfully)">
+                    Reset
+                </button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private LabelModel labelModel = new();
+    private IBrowserFile? selectedFile;
+    private string? errorMessage;
+    private string? successMessage;
+    private bool isLoading = false;
+    private bool isLoadingShipments = false;
+    private bool isSubmittedSuccessfully = false;
+    private string? bearerToken;
+    private List<ShipmentItem> shipments = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                bearerToken = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
+                if (!string.IsNullOrEmpty(bearerToken))
+                {
+                    await LoadShipments();
+                }
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    private bool HasValidToken()
+    {
+        return !string.IsNullOrEmpty(bearerToken);
+    }
+
+    private async Task LoadShipments()
+    {
+        isLoadingShipments = true;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, "https://localhost:7082/shipments");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<List<ShipmentItem>>();
+                if (result != null)
+                {
+                    shipments = result;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load shipments: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingShipments = false;
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+        errorMessage = null;
+        
+        // Validate file type
+        var allowedTypes = new[] { "application/pdf", "image/png" };
+        if (!allowedTypes.Contains(selectedFile.ContentType))
+        {
+            errorMessage = "Please select a PDF or PNG file.";
+            selectedFile = null;
+        }
+    }
+
+    private async Task HandleCreateLabel()
+    {
+        isLoading = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            // Validate inputs
+            if (string.IsNullOrWhiteSpace(labelModel.ShipmentId))
+            {
+                errorMessage = "Shipment ID is required.";
+                isLoading = false;
+                return;
+            }
+
+            // Create multipart form data
+            using var content = new MultipartFormDataContent();
+            
+            // Add shipment ID
+            content.Add(new StringContent(labelModel.ShipmentId), "shipmentId");
+            
+            // Add file if selected
+            if (selectedFile != null)
+            {
+                var fileContent = new StreamContent(selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024)); // 10 MB max
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(selectedFile.ContentType);
+                content.Add(fileContent, "labelFile", selectedFile.Name);
+            }
+
+            // Create HTTP request with Authorization header
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7082/shipment/label/create");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+            request.Content = content;
+
+            var response = await Http.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LabelResponse>();
+                if (result != null)
+                {
+                    isSubmittedSuccessfully = true;
+                    successMessage = $"Shipment label created successfully!";
+                }
+                else
+                {
+                    successMessage = "Shipment label failed to create. No response data.";
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                errorMessage = "Unauthorized. Please login again.";
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/login", true);
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Failed to create label. Status: {response.StatusCode}. {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        labelModel = new();
+        selectedFile = null;
+        isSubmittedSuccessfully = false;
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private class LabelModel
+    {
+        public string ShipmentId { get; set; } = "";
+    }
+
+    private class ShipmentItem
+    {
+        public string? Id { get; set; }
+        public string? Carrier { get; set; }
+        public string? TrackingNumber { get; set; }
+        public double Amount { get; set; }
+        public string? Zone { get; set; }
+    }
+
+    private class LabelResponse
+    {
+        public string? Id { get; set; }
+        public string? ShipmentId { get; set; }
+        public string? Format { get; set; }
+    }
+}
