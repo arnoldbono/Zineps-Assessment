@@ -11,6 +11,7 @@ builder.Services.AddOpenApi();
 // In a real-world application, you would typically have a separate project, called CarrierIntegrationAddin, say,
 // for the implementation and register it in the composition root of your application.
 builder.Services.AddScoped<ICarrierIntegration, CarrierIntegration>();
+builder.Services.AddScoped<IShippingDbContext, ShippingDbContext>();
 
 // Add CORS policy
 builder.Services.AddCors(options =>
