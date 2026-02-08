@@ -1,11 +1,13 @@
 namespace CarrierIntegrationModel;
 
+using System.Threading;
+
 using CarrierIntegrationCore;
 
 public class ShippingDbContext : IShippingDbContext
 {
     // In-memory storage for user credentials (For demonstration purposes only. In production, use a secure database and hashing for passwords)
-    private static Dictionary<string, string> _userStore = new()
+    private readonly Dictionary<string, string> _userStore = new()
     {
         { "admin", "password" },
         { "user1", "pass123" },
@@ -13,20 +15,20 @@ public class ShippingDbContext : IShippingDbContext
     };
 
     // In-memory storage for Account
-    private static Dictionary<string, Account> _accounts = new()
+    private readonly Dictionary<string, Account> _accounts = new()
     {
         { "admin", new Account { Id = Guid.NewGuid().ToString(), UserName = "admin", Name = "Khosrou (Khoos)", Surname = "Golzad" } },
         { "user1", new Account { Id = Guid.NewGuid().ToString(), UserName = "user1", Name = "Dirk Jan", Surname = "van Lonkhuyzen" } },
         { "demo", new Account { Id = Guid.NewGuid().ToString(), UserName = "demo", Name = "Mani", Surname = "Singh" } }
     };
 
-    private static Dictionary<Guid, string> _tokenUserMap = []; // Maps token GUIDs to usernames
-    private static Dictionary<Guid, DateTime> _tokenExpiryMap = []; // Maps token GUIDs to expiration times
-    private static Dictionary<string, Guid> _userTokenMap = []; // Maps usernames to token GUIDs
-    private static Dictionary<Guid, ShipmentLabel> _shipmentLabels = []; // Maps shipment label IDs to labels
-    private static Dictionary<Guid, Shipment> _shipments = []; // Maps shipment IDs to shipments
+    private readonly Dictionary<Guid, string> _tokenUserMap = []; // Maps token GUIDs to usernames
+    private readonly Dictionary<Guid, DateTime> _tokenExpiryMap = []; // Maps token GUIDs to expiration times
+    private readonly Dictionary<string, Guid> _userTokenMap = []; // Maps usernames to token GUIDs
+    private readonly Dictionary<Guid, ShipmentLabel> _shipmentLabels = []; // Maps shipment label IDs to labels
+    private readonly Dictionary<Guid, Shipment> _shipments = []; // Maps shipment IDs to shipments
 
-    private object _lock = new();
+    private readonly Lock _lock = new();
 
     public TokenInfo Authenticate(string username, string password)
     {
@@ -39,6 +41,9 @@ public class ShippingDbContext : IShippingDbContext
         if (_userStore.TryGetValue(username, out var storedPassword) && 
             storedPassword == password)
         {
+            Guid tokenGuid;
+            DateTime expiry;
+
             lock (_lock)
             {
                 if (_userTokenMap.TryGetValue(username, out var existingToken))
@@ -47,13 +52,10 @@ public class ShippingDbContext : IShippingDbContext
                     _tokenExpiryMap.Remove(existingToken);
                     _userTokenMap.Remove(username);
                 }
-            }
 
-            var tokenGuid = Guid.NewGuid();
-            var expiry = DateTime.UtcNow.AddHours(1); // Token valid for 1 hour
+                tokenGuid = Guid.NewGuid();
+                expiry = DateTime.UtcNow.AddHours(1); // Token valid for 1 hour
 
-            lock (_lock)
-            {   
                 _tokenUserMap[tokenGuid] = username;
                 _tokenExpiryMap[tokenGuid] = expiry;
                 _userTokenMap[username] = tokenGuid;
