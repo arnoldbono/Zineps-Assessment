@@ -42,13 +42,19 @@ The data is now stored in memory. In a production setting that would be a (SQL S
 ## Accountability
 
 Time spent: 2 hours on Friday evening after receiving the assessment, and 2 hours on Saterday morning.
-AI used: GitHub Pro (Claude Sonnet 4.5)
+AI used: GitHub GoPilot Pro (Claude Sonnet 4.5)
 Visual Studio Code
 Laptop: MacBook Pro M4 Max
 
 * The Azure function part was not done.
-* There are no unit tests.
+* There are no unit tests (<b>update:</b> added).
 
 Development method was to frequetly commit additional functionality to guide the AI. Each change was tested to make sure it worked to make sure the application remains stable.
 
 If time allows for it, I will add the missing parts and mention the extra time spent.
+
+## Extra Time
+
+ Added unit tests. To facilitate that, the in-memory storage needed its static removed and put into a separate class called <code>ShippingDbContext</code> with a corresponding interface. This change was done manually. Afterwards, CoPilot was used to interpret the interface and generate unit tests. By dependency inject <code>IShippingDbContext</code> into <code>CarrierIntegration</code>, and using moq, the functionality is put under test, not the in-memory storage implementation.
+
+ Time spent: 1 hour on Sunday morning

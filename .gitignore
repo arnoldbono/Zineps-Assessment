@@ -21,3 +21,5 @@ Desktop.ini
 /CarrierIntegrationCore/obj/
 /CarrierIntegrationModel/bin/
 /CarrierIntegrationModel/obj/
+/CarrierIntegrationModel.Tests/bin/
+/CarrierIntegrationModel.Tests/obj/
