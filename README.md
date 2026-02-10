@@ -10,8 +10,6 @@ The assessment text was helpful to specify that a SpeedShipIntegrationService RE
 Added pages to create a shipment and add multiple labels for a shipment. These are file uploads for now, not automatically created. The results can be viewed in the list shipment labels page where the labels can be downloaded.
 ![Shipment Label Listing](Documentation/listing-shipping-labels.png)
 
-
-
 ## About Scalability
 
 The site https://zineps.com mentions 99.9% uptime. However, that allows for almost 8 hours and 46 minutes of downtime. That means a high risk that users can encounted downtime.
@@ -58,3 +56,15 @@ If time allows for it, I will add the missing parts and mention the extra time s
  Added unit tests. To facilitate that, the in-memory storage needed its static removed and put into a separate class called <code>ShippingDbContext</code> with a corresponding interface. This change was done manually. Afterwards, CoPilot was used to interpret the interface and generate unit tests. By dependency inject <code>IShippingDbContext</code> into <code>CarrierIntegration</code>, and using moq, the functionality is put under test, not the in-memory storage implementation.
 
  Time spent: 1 hour on Sunday morning
+
+ ## Fixed issues
+
+2020-02-10
+* Fixed the XSS caused by the use of LocalStorage for bearer token.
+* Fixed navigation problems caused by AddScope instead of AddSingleton.
+
+## Addressed review comments
+
+2020-02-10
+* Added retry on Create Shipment.
+* Remove enable / disable on NavMenu items since logic on corresponding pages handles missing bearer token.
