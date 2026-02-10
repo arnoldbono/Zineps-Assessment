@@ -1,9 +1,10 @@
 @page "/login"
 @using Microsoft.AspNetCore.Components.Forms
+@using CarrierIntegrationWebApp.Services
 @rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager Navigation
-@inject IJSRuntime JSRuntime
+@inject BearerTokenService BearerTokenService
 
 <PageTitle>Login</PageTitle>
 
@@ -54,28 +55,17 @@
 </div>
 
 @code {
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+    
     private LoginModel loginModel = new();
     private string? errorMessage;
     private string? successMessage;
     private bool isLoading = false;
-    private string? bearerToken;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            try
-            {
-                bearerToken = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
-                StateHasChanged();
-            }
-            catch { }
-        }
-    }
 
     private bool HasValidToken()
     {
-        return !string.IsNullOrEmpty(bearerToken);
+        return BearerTokenService.HasToken();
     }
 
     private async Task HandleLogin()
@@ -97,13 +87,12 @@
                 var result = await response.Content.ReadFromJsonAsync<TokenResponse>();
                 if (result != null)
                 {
-                    bearerToken = result.AccessToken;
-                    await JSRuntime.InvokeVoidAsync("localStorage.setItem", "bearerToken", bearerToken);
+                    BearerTokenService.Token = result.AccessToken;
                     successMessage = $"Login successful! Redirecting...";
                     
-                    // Wait 2 seconds then navigate to home page
                     await Task.Delay(2000);
-                    Navigation.NavigateTo("/", true);
+                    var targetUrl = !string.IsNullOrEmpty(ReturnUrl) ? ReturnUrl : "/";
+                    Navigation.NavigateTo(targetUrl, true);
                 }
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)

@@ -1,7 +1,8 @@
 ﻿@page "/"
+@using CarrierIntegrationWebApp.Services
 @rendermode InteractiveServer
-@inject IJSRuntime JSRuntime
 @inject HttpClient Http
+@inject BearerTokenService BearerTokenService
 
 <PageTitle>Home</PageTitle>
 
@@ -12,13 +13,13 @@ Welcome to your carrier integration app.
 @code {
     private static bool hasInvalidated = false;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnInitializedAsync()
     {
-        if (firstRender && !hasInvalidated)
+        if (!hasInvalidated)
         {
             try
             {
-                var token = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
+                var token = BearerTokenService.Token;
                 
                 if (!string.IsNullOrEmpty(token))
                 {
@@ -29,8 +30,8 @@ Welcome to your carrier integration app.
                     }
                     catch { }
                     
-                    // Remove from localStorage
-                    await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "bearerToken");
+                    // Remove from service
+                    BearerTokenService.RemoveToken();
                 }
                 
                 hasInvalidated = true;

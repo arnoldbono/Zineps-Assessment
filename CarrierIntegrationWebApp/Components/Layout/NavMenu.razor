@@ -1,7 +1,8 @@
 ﻿@rendermode InteractiveServer
-@inject IJSRuntime JSRuntime
+@using CarrierIntegrationWebApp.Services
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@inject BearerTokenService BearerTokenService
 @implements IDisposable
 
 <div class="top-row ps-3 navbar navbar-dark">
@@ -21,48 +22,21 @@
         </div>
 
         <div class="nav-item px-3">
-            @if (isAuthenticated)
-            {
-                <NavLink class="nav-link" href="shipment/create">
-                    <span class="bi bi-plus-square-nav-menu" aria-hidden="true"></span> Create Shipment
-                </NavLink>
-            }
-            else
-            {
-                <a class="nav-link disabled" aria-disabled="true" style="cursor: not-allowed; opacity: 0.6;">
-                    <span class="bi bi-plus-square-nav-menu" aria-hidden="true"></span> Create Shipment
-                </a>
-            }
+            <NavLink class="nav-link" href="shipment/create">
+                <span class="bi bi-plus-square-nav-menu" aria-hidden="true"></span> Create Shipment
+            </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            @if (isAuthenticated)
-            {
-                <NavLink class="nav-link" href="shipment/label/create">
-                    <span class="bi bi-tag-nav-menu" aria-hidden="true"></span> Create Shipment Label
-                </NavLink>
-            }
-            else
-            {
-                <a class="nav-link disabled" aria-disabled="true" style="cursor: not-allowed; opacity: 0.6;">
-                    <span class="bi bi-tag-nav-menu" aria-hidden="true"></span> Create Shipment Label
-                </a>
-            }
+            <NavLink class="nav-link" href="shipment/label/create">
+                <span class="bi bi-tag-nav-menu" aria-hidden="true"></span> Create Shipment Label
+            </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            @if (isAuthenticated)
-            {
-                <NavLink class="nav-link" href="shipment/labels">
-                    <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> List Shipment Labels
-                </NavLink>
-            }
-            else
-            {
-                <a class="nav-link disabled" aria-disabled="true" style="cursor: not-allowed; opacity: 0.6;">
-                    <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> List Shipment Labels
-                </a>
-            }
+            <NavLink class="nav-link" href="shipment/labels">
+                <span class="bi bi-list-ul-nav-menu" aria-hidden="true"></span> List Shipment Labels
+            </NavLink>
         </div>
 
         @if (!isAuthenticated)
@@ -88,41 +62,30 @@
     private bool isAuthenticated = false;
     private System.Threading.Timer? timer;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnInitialized()
     {
-        if (firstRender)
+        CheckAuthenticationStatus();
+        // Poll for authentication changes every second
+        timer = new System.Threading.Timer(_ =>
         {
-            await CheckAuthenticationStatus();
-            // Poll for authentication changes every second
-            timer = new System.Threading.Timer(async _ =>
+            InvokeAsync(() =>
             {
-                await InvokeAsync(async () =>
-                {
-                    await CheckAuthenticationStatus();
-                    StateHasChanged();
-                });
-            }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-        }
+                CheckAuthenticationStatus();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
 
-    private async Task CheckAuthenticationStatus()
+    private void CheckAuthenticationStatus()
     {
-        try
-        {
-            var token = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
-            isAuthenticated = !string.IsNullOrEmpty(token);
-        }
-        catch
-        {
-            isAuthenticated = false;
-        }
+        isAuthenticated = BearerTokenService.HasToken();
     }
 
     private async Task HandleLogout()
     {
         try
         {
-            var token = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
+            var token = BearerTokenService.Token;
             
             if (!string.IsNullOrEmpty(token))
             {
@@ -130,7 +93,7 @@
                 await Http.PostAsJsonAsync("https://localhost:7082/logout", new { token = token });
             }
             
-            await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "bearerToken");
+            BearerTokenService.RemoveToken();
             isAuthenticated = false;
             Navigation.NavigateTo("/", true);
         }

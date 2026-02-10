@@ -1,10 +1,12 @@
 @page "/shipment/create"
 @using Microsoft.AspNetCore.Components.Forms
 @using System.Net.Http.Headers
+@using CarrierIntegrationWebApp.Services
 @rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager Navigation
-@inject IJSRuntime JSRuntime
+@inject PendingShipmentService PendingShipmentService
+@inject BearerTokenService BearerTokenService
 
 <PageTitle>Create Shipment</PageTitle>
 
@@ -85,29 +87,41 @@ else
 }
 
 @code {
+    [SupplyParameterFromQuery]
+    public bool? AutoSubmit { get; set; }
+    
     private ShipmentModel shipmentModel = new();
     private string? errorMessage;
     private string? successMessage;
     private bool isLoading = false;
     private bool isSubmittedSuccessfully = false;
-    private string? bearerToken;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override void OnInitialized()
     {
-        if (firstRender)
+        // Check if we should auto-submit after returning from login
+        if (AutoSubmit == true && HasValidToken())
         {
-            try
+            // Restore form data from scoped service (server-side, XSS-safe)
+            var pendingData = PendingShipmentService.RetrieveAndClear();
+            if (pendingData != null)
             {
-                bearerToken = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
-                StateHasChanged();
+                shipmentModel = new ShipmentModel
+                {
+                    Carrier = pendingData.Carrier,
+                    TrackingNumber = pendingData.TrackingNumber,
+                    Amount = pendingData.Amount,
+                    Zone = pendingData.Zone
+                };
+                
+                // Remove autoSubmit query param from URL
+                Navigation.NavigateTo("/shipment/create", true);
             }
-            catch { }
         }
     }
 
     private bool HasValidToken()
     {
-        return !string.IsNullOrEmpty(bearerToken);
+        return BearerTokenService.HasToken();
     }
 
     private async Task HandleCreateShipment()
@@ -120,7 +134,7 @@ else
         {
             // Create HTTP request with Authorization header
             var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7082/shipment/add");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", BearerTokenService.Token);
             request.Content = JsonContent.Create(new
             {
                 shipment = new
@@ -153,9 +167,19 @@ else
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
+                BearerTokenService.RemoveToken();
+
+                // Store form data in scoped service (server-side, XSS-safe)
+                PendingShipmentService.StorePendingShipment(
+                    shipmentModel.Carrier,
+                    shipmentModel.TrackingNumber,
+                    shipmentModel.Amount,
+                    shipmentModel.Zone
+                );
+                
                 errorMessage = "Unauthorized. Please login again.";
                 await Task.Delay(2000);
-                Navigation.NavigateTo("/login", true);
+                Navigation.NavigateTo("/login?returnUrl=/shipment/create?autoSubmit=true", false);
             }
             else
             {

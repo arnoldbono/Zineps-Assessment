@@ -1,10 +1,14 @@
 using CarrierIntegrationWebApp.Components;
+using CarrierIntegrationWebApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddScoped<PendingShipmentService>();
+builder.Services.AddSingleton<BearerTokenService>();
 
 // Add CORS policy
 builder.Services.AddCors(options =>

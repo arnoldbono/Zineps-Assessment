@@ -1,10 +1,12 @@
 @page "/shipment/labels"
 @using Microsoft.AspNetCore.Components.Forms
 @using System.Net.Http.Headers
+@using CarrierIntegrationWebApp.Services
 @rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject BearerTokenService BearerTokenService
 
 <PageTitle>Shipment Labels</PageTitle>
 
@@ -118,31 +120,21 @@ else
     private string? errorMessage;
     private bool isLoadingShipments = false;
     private bool isLoadingLabels = false;
-    private string? bearerToken;
     private string? selectedShipmentId;
     private List<ShipmentItem> shipments = new();
     private List<LabelItem> labels = new();
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnInitializedAsync()
     {
-        if (firstRender)
+        if (BearerTokenService.HasToken())
         {
-            try
-            {
-                bearerToken = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "bearerToken");
-                if (!string.IsNullOrEmpty(bearerToken))
-                {
-                    await LoadShipments();
-                }
-                StateHasChanged();
-            }
-            catch { }
+            await LoadShipments();
         }
     }
 
     private bool HasValidToken()
     {
-        return !string.IsNullOrEmpty(bearerToken);
+        return BearerTokenService.HasToken();
     }
 
     private async Task LoadShipments()
@@ -152,7 +144,7 @@ else
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, "https://localhost:7082/shipments");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", BearerTokenService.Token);
 
             var response = await Http.SendAsync(request);
 
@@ -204,7 +196,7 @@ else
         try
         {
             var request = new HttpRequestMessage(HttpMethod.Get, $"https://localhost:7082/shipment/{shipmentId}/labels");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", BearerTokenService.Token);
 
             var response = await Http.SendAsync(request);
 
